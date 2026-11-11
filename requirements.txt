@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+pydantic
+chromadb
+sentence-transformers
+fpdf2
+pytest
+httpx

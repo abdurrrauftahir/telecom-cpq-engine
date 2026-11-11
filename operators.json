@@ -1,0 +1,58 @@
+[
+ {
+  "name": "Jazz",
+  "code": "JAZZ",
+  "type": "Operator",
+  "currency": "PKR",
+  "tax_percent": 18
+ },
+ {
+  "name": "Ufone",
+  "code": "UFN",
+  "type": "Operator",
+  "currency": "PKR",
+  "tax_percent": 18
+ },
+ {
+  "name": "Zong",
+  "code": "ZONG",
+  "type": "Operator",
+  "currency": "PKR",
+  "tax_percent": 18
+ },
+ {
+  "name": "STC",
+  "code": "STC",
+  "type": "Operator",
+  "currency": "SAR",
+  "tax_percent": 15
+ },
+ {
+  "name": "Mobily",
+  "code": "MOB",
+  "type": "Operator",
+  "currency": "SAR",
+  "tax_percent": 15
+ },
+ {
+  "name": "Ooredoo",
+  "code": "OOR",
+  "type": "Operator",
+  "currency": "QAR",
+  "tax_percent": 0
+ },
+ {
+  "name": "Ericsson",
+  "code": "ERIC",
+  "type": "Vendor",
+  "currency": "USD",
+  "tax_percent": 0
+ },
+ {
+  "name": "Qvantel",
+  "code": "QVA",
+  "type": "Vendor",
+  "currency": "EUR",
+  "tax_percent": 0
+ }
+]

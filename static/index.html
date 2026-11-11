@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Telecom CPQ Engine</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style type="text/tailwindcss">
+  /* Chhote reusable styles: poore dashboard mein yahi use hote hain */
+  @layer components {
+  .card  { @apply bg-white rounded-2xl border border-gray-200 shadow-sm p-6; }
+  .input { @apply border border-gray-300 rounded-lg px-3 py-2 bg-white text-gray-700 text-sm focus:outline-none focus:ring-2 focus:ring-teal-400; }
+  .btn   { @apply bg-teal-600 hover:bg-teal-700 text-white font-medium rounded-lg px-4 py-2 text-sm transition; }
+  .btn2  { @apply bg-white hover:bg-gray-100 text-gray-700 border border-gray-300 rounded-lg px-3 py-1 text-xs transition disabled:opacity-40; }
+  .badge { @apply px-2 py-1 rounded-full text-xs font-medium; }
+  }
+</style>
+</head>
+<body class="bg-gray-50 text-gray-700 min-h-screen">
+
+<!-- ================= LOGIN ================= -->
+<div id="login" class="min-h-screen flex items-center justify-center bg-gradient-to-br from-teal-50 via-white to-violet-50 p-4">
+  <form onsubmit="doLogin(event)" class="card w-full max-w-sm">
+    <h1 class="text-2xl font-bold text-teal-700">Telecom CPQ Engine</h1>
+    <p class="text-sm text-gray-500 mb-5">Sign in to continue</p>
+    <input name="username" placeholder="Username" class="input w-full mb-3" required>
+    <input name="password" type="password" placeholder="Password" class="input w-full mb-3" required>
+    <p id="loginError" class="text-sm text-rose-600 mb-2"></p>
+    <button class="btn w-full">Sign in</button>
+    <div class="mt-5 text-xs text-gray-500 bg-gray-50 rounded-lg p-3 leading-5">
+      Demo accounts:<br><b>admin / admin123</b> (Admin) &middot; <b>manager / manager123</b> (Manager) &middot; <b>sales / sales123</b> (Sales)
+    </div>
+  </form>
+</div>
+
+<!-- ================= APP ================= -->
+<div id="app" class="hidden">
+  <header class="bg-gradient-to-r from-teal-600 to-emerald-500 text-white shadow">
+    <div class="max-w-6xl mx-auto px-6 py-4 flex flex-wrap items-center justify-between gap-3">
+      <div><div class="text-xl font-bold">Telecom CPQ Engine</div><div class="text-xs text-teal-50">AI Search &middot; TMF620 &middot; TMF648</div></div>
+      <div class="flex flex-wrap items-center gap-3 text-sm">
+        <select id="op" onchange="changeOp()" class="rounded-lg px-3 py-2 text-gray-700 bg-white"></select>
+        <span id="who" class="bg-white/20 rounded-lg px-3 py-2"></span>
+        <button onclick="logout()" class="bg-white text-teal-700 rounded-lg px-3 py-2 font-medium">Logout</button>
+      </div>
+    </div>
+  </header>
+  <nav class="bg-white border-b border-gray-200"><div id="nav" class="max-w-6xl mx-auto px-6 flex gap-1 overflow-x-auto"></div></nav>
+
+  <main class="max-w-6xl mx-auto p-6">
+    <!-- DASHBOARD -->
+    <section id="dashboard">
+      <div id="cards" class="grid grid-cols-2 md:grid-cols-6 gap-4 mb-6"></div>
+      <div class="card max-w-sm"><h2 class="font-semibold mb-3">Quotes overview</h2><canvas id="chart"></canvas></div>
+    </section>
+
+    <!-- QUOTE BUILDER -->
+    <section id="quote" class="hidden grid md:grid-cols-2 gap-6">
+      <div class="card">
+        <h2 class="font-semibold mb-3">AI product search</h2>
+        <div class="flex gap-2">
+          <input id="q" placeholder="e.g. vehicle tracking for my trucks" class="input flex-1">
+          <button onclick="doSearch()" class="btn">Search</button>
+        </div>
+        <div id="hits" class="mt-4 space-y-2"></div>
+      </div>
+      <div class="card">
+        <h2 class="font-semibold mb-3">Quote</h2>
+        <input id="customer" placeholder="Customer / company name" class="input w-full mb-3">
+        <div id="cart" class="space-y-2 mb-3 text-sm"></div>
+        <button onclick="validate()" class="btn w-full">Validate quote</button>
+        <div id="result" class="mt-4"></div>
+      </div>
+    </section>
+
+    <!-- CATALOG MANAGER -->
+    <section id="catalog" class="hidden">
+      <div class="flex flex-wrap gap-2 items-center mb-4">
+        <input id="fq" oninput="loadCatalog(1)" placeholder="Search name / category" class="input w-64">
+        <select id="ftype" onchange="loadCatalog(1)" class="input"><option value="">All types</option><option>Product</option><option>Service</option><option>Offer</option></select>
+        <select id="fstatus" onchange="loadCatalog(1)" class="input"><option value="">All status</option><option>Active</option><option>Draft</option><option>Retired</option></select>
+        <span class="flex-1"></span>
+        <button onclick="exportCsv()" class="btn2">Export CSV</button>
+        <label class="btn2 cursor-pointer admin-only">Import CSV<input type="file" accept=".csv" class="hidden" onchange="importCsv(this)"></label>
+      </div>
+      <form id="pform" onsubmit="saveProduct(event)" class="card mb-4 admin-only">
+        <h2 class="font-semibold mb-3">Add or edit an item</h2>
+        <div class="grid md:grid-cols-4 gap-3">
+          <input name="offering_id" placeholder="ID (e.g. JAZZ-NEW-100)" required class="input">
+          <input name="name" placeholder="Name" required class="input">
+          <select name="item_type" class="input"><option>Product</option><option>Service</option><option>Offer</option></select>
+          <input name="category" placeholder="Category" class="input">
+          <input name="price" type="number" step="any" placeholder="Price" required class="input">
+          <select name="billing" class="input"><option>Monthly</option><option>Yearly</option><option>One-time</option><option>Usage</option></select>
+          <input name="min_qty" type="number" placeholder="Min qty" class="input">
+          <input name="max_discount" type="number" placeholder="Max discount %" class="input">
+          <input name="valid_until" type="date" title="Valid until (offers)" class="input">
+          <select name="status" class="input"><option>Active</option><option>Draft</option><option>Retired</option></select>
+          <input name="incompatible" placeholder="Incompatible IDs (comma)" class="input">
+          <input name="description" placeholder="Description (AI search uses it)" class="input">
+        </div>
+        <details class="mt-3"><summary class="cursor-pointer text-sm text-teal-700 font-medium">Advanced rules (bundle, dependency, volume tiers, contract)</summary>
+          <div class="grid md:grid-cols-5 gap-3 mt-3">
+            <input name="bundle_of" placeholder="Bundle includes IDs" class="input">
+            <input name="requires" placeholder="Requires IDs" class="input">
+            <input name="tiers" placeholder="Tiers e.g. 50:5, 200:10" class="input">
+            <input name="term_months" type="number" placeholder="Contract months" class="input">
+            <input name="setup_fee" type="number" step="any" placeholder="Setup fee / unit" class="input">
+          </div>
+        </details>
+        <button class="btn w-full mt-4">Save (add / update)</button>
+      </form>
+      <div id="products"></div>
+      <details class="card mt-6 admin-only"><summary class="cursor-pointer font-semibold">Add a new operator or vendor</summary>
+        <form onsubmit="addProvider(event)" class="grid md:grid-cols-5 gap-3 mt-4">
+          <input name="name" placeholder="Name (e.g. Telenor)" required class="input">
+          <input name="code" placeholder="Code (TEL)" required class="input">
+          <select name="type" class="input"><option>Operator</option><option>Vendor</option></select>
+          <input name="currency" placeholder="Currency (PKR)" required class="input">
+          <input name="tax_percent" type="number" step="any" placeholder="Tax %" class="input">
+          <button class="btn md:col-span-5">Add provider</button>
+        </form>
+      </details>
+    </section>
+
+    <!-- HISTORY -->
+    <section id="history" class="hidden"><div id="quotes"></div></section>
+
+    <!-- REPORTS -->
+    <section id="report" class="hidden">
+      <div id="reportCards" class="grid md:grid-cols-3 gap-4 mb-6"></div>
+      <h2 class="font-semibold mb-3">All providers</h2>
+      <div id="reportTable"></div>
+    </section>
+
+    <!-- AUDIT LOG -->
+    <section id="audit" class="hidden"><div id="auditBox"></div></section>
+  </main>
+</div>
+
+<script>
+// ================= Chhote helpers =================
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => "&#" + c.charCodeAt(0) + ";");      // user text ko mehfooz banata hai
+const money = (n, cur = CUR) => Number(n).toLocaleString() + " " + cur;
+const pill = (text, color) => `<span class="badge bg-${color}-100 text-${color}-700">${text}</span>`;
+const STATUS = {Active: pill("Active", "emerald"), Draft: pill("Draft", "sky"), Retired: pill("Retired", "gray")};
+const QSTATUS = {APPROVED: pill("Approved", "emerald"), NEEDS_APPROVAL: pill("Needs approval", "violet"), REJECTED: pill("Rejected", "rose")};
+const TYPE = {Product: pill("Product", "teal"), Service: pill("Service", "sky"), Offer: pill("Offer", "violet")};
+const toList = s => s ? s.split(/[,|]/).map(x => x.trim()).filter(Boolean) : [];                  // "A, B" -> ["A","B"]
+const toTiers = s => toList(s).map(t => { const [m, d] = t.split(":"); return {min_qty: +m, discount: +d}; });
+const tiersText = ts => ts.map(t => t.min_qty + ":" + t.discount).join(", ");
+
+const table = (heads, rows) => `<div class="card p-0 overflow-x-auto"><table class="w-full text-sm">
+  <thead class="bg-gray-50 text-gray-500 text-left"><tr>${heads.map(h => `<th class="p-3 font-medium">${h}</th>`).join("")}</tr></thead>
+  <tbody>${rows.map(r => `<tr class="border-t border-gray-100 hover:bg-teal-50/50">${r.map(c => `<td class="p-3">${c}</td>`).join("")}</tr>`).join("")
+    || `<tr><td class="p-6 text-center text-gray-400" colspan="${heads.length}">No data yet</td></tr>`}</tbody></table></div>`;
+
+const pager = (p, fn) => `<div class="flex items-center justify-between mt-3 text-sm text-gray-500"><span>${p.total} records</span>
+  <div class="flex items-center gap-2"><button class="btn2" ${p.page <= 1 ? "disabled" : ""} onclick="${fn}(${p.page - 1})">Previous</button>
+  <span>Page ${p.page} of ${p.pages}</span>
+  <button class="btn2" ${p.page >= p.pages ? "disabled" : ""} onclick="${fn}(${p.page + 1})">Next</button></div></div>`;
+
+// ================= Login, token aur roles =================
+let session = JSON.parse(sessionStorage.getItem("session") || "null");
+const RANK = {Sales: 1, Manager: 2, Admin: 3};
+const can = role => RANK[session.role] >= RANK[role];
+
+async function api(url, opt = {}) {                    // har request ke sath login token jata hai
+  opt.headers = {...opt.headers, Authorization: "Bearer " + (session ? session.token : "")};
+  const r = await fetch(url, opt);
+  if (r.status === 401) { sessionStorage.removeItem("session"); location.reload(); }
+  return r.json();
+}
+const post = (url, data) => api(url, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(data)});
+
+async function doLogin(e) {
+  e.preventDefault();
+  const r = await fetch("/api/login", {method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(Object.fromEntries(new FormData(e.target)))});
+  const d = await r.json();
+  if (!r.ok) return $("loginError").textContent = d.detail;
+  session = d; sessionStorage.setItem("session", JSON.stringify(d)); startApp();
+}
+async function logout() {
+  await api("/api/logout", {method: "POST"});
+  sessionStorage.removeItem("session"); location.reload();
+}
+
+// ================= Tabs =================
+let cart = [], chart, op = "", CUR = "PKR", tab = "dashboard", ops = [], lastHits = [], rows = [], curSource = "";
+const TABS = {dashboard: ["Dashboard", "Sales", () => loadStats()], quote: ["Quote", "Sales", () => {}],
+  catalog: ["Catalog Manager", "Sales", () => loadCatalog(1)], history: ["History", "Sales", () => loadHistory(1)],
+  report: ["Reports", "Manager", () => loadReport()], audit: ["Audit Log", "Admin", () => loadAudit(1)]};
+
+function show(t) {
+  tab = t;
+  Object.keys(TABS).forEach(k => {
+    $(k).classList.toggle("hidden", k !== t);
+    const b = $("tab-" + k);
+    if (b) { b.classList.toggle("text-teal-700", k === t); b.classList.toggle("border-teal-600", k === t);
+             b.classList.toggle("text-gray-500", k !== t); b.classList.toggle("border-transparent", k !== t); }
+  });
+  TABS[t][2]();
+}
+
+async function startApp() {
+  $("login").classList.add("hidden"); $("app").classList.remove("hidden");
+  $("who").textContent = session.username + " · " + session.role;
+  document.querySelectorAll(".admin-only").forEach(e => e.classList.toggle("hidden", !can("Admin")));
+  $("nav").innerHTML = Object.entries(TABS).filter(([, t]) => can(t[1])).map(([k, t]) =>
+    `<button id="tab-${k}" onclick="show('${k}')" class="px-4 py-3 text-sm font-medium border-b-2 border-transparent hover:text-teal-700 whitespace-nowrap">${t[0]}</button>`).join("");
+  ops = await api("/api/operators");
+  $("op").innerHTML = ops.map(o => `<option value="${esc(o.name)}">${esc(o.name)} · ${o.type}</option>`).join("");
+  changeOp(false);
+  show("dashboard");
+}
+function changeOp(reload = true) {
+  op = $("op").value; CUR = ops.find(o => o.name === op).currency;
+  cart = []; drawCart(); $("result").innerHTML = ""; $("hits").innerHTML = "";
+  if (reload) TABS[tab][2]();
+}
+
+// ================= Dashboard =================
+async function loadStats() {
+  const s = await api("/api/stats?operator=" + op);
+  const items = [["Products", s.products, "teal"], ["Quotes", s.quotes, "gray"], ["Approved", s.approved, "emerald"],
+                 ["Pending", s.pending, "violet"], ["Rejected", s.rejected, "rose"], ["Approved value", money(s.revenue), "teal"]];
+  $("cards").innerHTML = items.map(([k, v, c]) => `<div class="card p-4"><div class="text-xs text-gray-500">${k}</div><div class="text-xl font-bold text-${c}-600">${v}</div></div>`).join("");
+  if (typeof Chart === "undefined") return;
+  if (chart) chart.destroy();
+  chart = new Chart($("chart"), {type: "doughnut", data: {labels: ["Approved", "Pending", "Rejected"],
+    datasets: [{data: [s.approved, s.pending, s.rejected], backgroundColor: ["#10b981", "#8b5cf6", "#f43f5e"]}]}});
+}
+
+// ================= Quote builder =================
+async function doSearch() {
+  lastHits = await api("/api/search?operator=" + op + "&q=" + encodeURIComponent($("q").value));
+  $("hits").innerHTML = lastHits.map((p, i) => `<div class="border border-gray-200 rounded-xl p-3 flex justify-between items-center hover:border-teal-400">
+    <div><div class="font-medium">${esc(p.name)} ${TYPE[p.item_type]}</div>
+    <div class="text-xs text-gray-500 mt-1">${money(p.price, p.currency)} / ${p.billing} · Min ${p.min_qty} · Max discount ${p.max_discount}% · Match ${Math.round(p.score * 100)}%</div></div>
+    <button onclick="addToCart(${i})" class="btn">Add</button></div>`).join("") || "<p class='text-gray-400 text-sm'>Nothing found</p>";
+}
+function addToCart(i) {
+  const p = lastHits[i];
+  if (!cart.find(c => c.id === p.offering_id)) cart.push({id: p.offering_id, name: p.name, qty: p.min_qty, discount: 0});
+  drawCart();
+}
+function drawCart() {
+  $("cart").innerHTML = cart.map((c, i) => `<div class="flex items-center gap-2 bg-gray-50 rounded-lg p-2"><span class="flex-1">${esc(c.name)}</span>
+    Qty <input type="number" value="${c.qty}" onchange="cart[${i}].qty=+this.value" class="input w-20">
+    Disc% <input type="number" value="${c.discount}" onchange="cart[${i}].discount=+this.value" class="input w-16">
+    <button class="btn2" onclick="cart.splice(${i},1);drawCart()">Remove</button></div>`).join("");
+}
+async function validate() {
+  const r = await post("/api/quote", {operator: op, customer: $("customer").value || "Walk-in",
+    items: cart.map(c => ({offering_id: c.id, qty: c.qty, discount: c.discount}))});
+  if (r.detail) return $("result").innerHTML = `<p class="text-rose-600 text-sm">Cart is empty or the data is invalid</p>`;
+  const box = {APPROVED: "bg-emerald-50 border-emerald-200", NEEDS_APPROVAL: "bg-violet-50 border-violet-200", REJECTED: "bg-rose-50 border-rose-200"}[r.status];
+  const lines = r.lines.map(l => `<tr><td class="py-1">${esc(l.name)}${l.includes.length ? `<div class="text-xs text-gray-500">Includes ${l.includes.map(esc).join(", ")}</div>` : ""}</td>
+    <td>${l.qty}</td><td>${l.discount}%${l.tier_discount ? ` <span class="text-xs text-emerald-600">(volume ${l.tier_discount}%)</span>` : ""}</td>
+    <td>${l.term_months ? l.term_months + " m" : "-"}</td><td>${l.setup_fee ? money(l.setup_fee) : "-"}</td><td class="text-right">${money(l.total)}</td></tr>`).join("");
+  $("result").innerHTML = `<div class="rounded-xl border p-4 ${box}">
+    <div class="flex items-center gap-2 mb-2">${QSTATUS[r.status]} <span class="text-xs text-gray-500">Quote #${r.quote_id}</span></div>
+    ${r.reasons.map(x => `<p class="text-sm">${esc(x)}</p>`).join("")}
+    ${r.status === "REJECTED" && r.leakage ? `<p class="text-sm text-emerald-700 mt-1">Discount leakage prevented: ${money(r.leakage)}</p>` : ""}
+    <table class="w-full text-sm mt-3"><tr class="text-left text-xs text-gray-500"><th>Item</th><th>Qty</th><th>Discount</th><th>Term</th><th>Setup</th><th class="text-right">Total</th></tr>${lines}</table>
+    <div class="text-sm mt-3 text-right">Subtotal ${money(r.subtotal)} · Tax ${money(r.tax)}</div>
+    <div class="text-lg font-bold text-right">Total ${money(r.total)}</div></div>`;
+}
+
+// ================= Catalog Manager =================
+// CSV ke columns (description hamesha aakhri)
+const FIELDS = ["offering_id", "name", "item_type", "category", "price", "billing", "min_qty", "max_discount", "valid_until", "status",
+                "term_months", "setup_fee", "incompatible", "requires", "bundle_of", "tiers", "description"];
+const SHOW = {incompatible: a => a.join(", "), requires: a => a.join(", "), bundle_of: a => a.join(", "), tiers: tiersText};
+
+async function loadCatalog(page = 1) {
+  const url = `/api/products?operator=${op}&page=${page}&q=${encodeURIComponent($("fq").value)}&item_type=${$("ftype").value}&status=${$("fstatus").value}`;
+  const r = await api(url);
+  rows = r.items;
+  $("products").innerHTML = table(["ID", "Name", "Type", "Category", "Price", "Rules", "Valid till", "Status", "Source", ""],
+    rows.map((p, i) => [esc(p.offering_id), esc(p.name), TYPE[p.item_type], esc(p.category), money(p.price, p.currency) + " / " + p.billing,
+      `<div class="text-xs text-gray-500">Min ${p.min_qty} · Disc ${p.max_discount}%${p.tiers.length ? " · Tiers " + tiersText(p.tiers) : ""}${p.term_months ? " · " + p.term_months + "m term" : ""}${p.requires.length ? " · Needs " + p.requires.map(esc).join(", ") : ""}${p.bundle_of.length ? " · Bundle of " + p.bundle_of.length : ""}</div>`,
+      p.valid_until || "-", STATUS[p.status], esc(p.source),
+      can("Admin") ? `<div class="flex gap-1"><button class="btn2" onclick="editProduct(${i})">Edit</button>
+        <button class="btn2" onclick="setStatus(${i})">${p.status === "Active" ? "Retire" : "Activate"}</button>
+        <button class="btn2" onclick="delProduct(${i})">Delete</button></div>` : ""])) + pager(r, "loadCatalog");
+}
+function editProduct(i) {
+  const p = rows[i], f = $("pform");
+  FIELDS.forEach(k => f.elements[k].value = SHOW[k] ? SHOW[k](p[k]) : (p[k] ?? ""));
+  curSource = p.source;
+  f.scrollIntoView({behavior: "smooth"});
+}
+async function saveProduct(e) {
+  e.preventDefault();
+  const f = Object.fromEntries(new FormData(e.target));
+  Object.assign(f, {operator: op, currency: CUR, source: curSource || "Manual", price: +f.price, min_qty: +f.min_qty || 1,
+    max_discount: +f.max_discount || 0, term_months: +f.term_months || 0, setup_fee: +f.setup_fee || 0,
+    incompatible: toList(f.incompatible), requires: toList(f.requires), bundle_of: toList(f.bundle_of), tiers: toTiers(f.tiers)});
+  const r = await post("/api/products", [f]);
+  if (r.detail) return alert("Invalid data: " + JSON.stringify(r.detail).slice(0, 200));
+  e.target.reset(); curSource = ""; loadCatalog(1);
+}
+async function setStatus(i) {
+  const p = rows[i];
+  await post(`/api/products/${encodeURIComponent(p.offering_id)}/status`, {status: p.status === "Active" ? "Retired" : "Active"});
+  loadCatalog(1);
+}
+async function delProduct(i) {
+  if (!confirm("Delete this item?")) return;
+  await api("/api/products/" + encodeURIComponent(rows[i].offering_id), {method: "DELETE"});
+  loadCatalog(1);
+}
+async function exportCsv() {                           // saare items (sirf current page nahi)
+  const all = (await api(`/api/products?operator=${op}&size=100000`)).items;
+  const cell = (p, k) => k === "tiers" ? p[k].map(t => t.min_qty + ":" + t.discount).join("|")
+    : Array.isArray(p[k]) ? p[k].join("|") : String(p[k] ?? "").replace(/[,\n]/g, " ");
+  const text = [FIELDS.join(","), ...all.map(p => FIELDS.map(k => cell(p, k)).join(","))].join("\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text], {type: "text/csv"}));
+  a.download = op + "_catalog.csv"; a.click();
+}
+async function importCsv(input) {                      // pehli line ke naam se columns pehchante hain
+  const [head, ...lines] = (await input.files[0].text()).trim().split(/\r?\n/);
+  const hs = head.split(",").map(h => h.trim());
+  const items = lines.filter(l => l.trim()).map(l => {
+    const c = l.split(","), p = {};
+    hs.forEach((h, i) => p[h] = i === hs.length - 1 ? c.slice(i).join(",").trim() : (c[i] || "").trim());
+    return {...p, price: +p.price, min_qty: +p.min_qty || 1, max_discount: +p.max_discount || 0, term_months: +p.term_months || 0,
+      setup_fee: +p.setup_fee || 0, operator: op, currency: CUR, source: "Imported", item_type: p.item_type || "Product",
+      status: p.status || "Active", billing: p.billing || "Monthly", incompatible: toList(p.incompatible),
+      requires: toList(p.requires), bundle_of: toList(p.bundle_of), tiers: toTiers(p.tiers)};
+  });
+  const r = await post("/api/products", items);
+  input.value = "";
+  if (r.detail) return alert("Import failed: " + JSON.stringify(r.detail).slice(0, 300));
+  alert(r.added + " items imported"); loadCatalog(1);
+}
+async function addProvider(e) {
+  e.preventDefault();
+  const f = Object.fromEntries(new FormData(e.target)); f.tax_percent = +f.tax_percent || 0;
+  const r = await post("/api/operators", f);
+  if (r.detail) return alert("Invalid data: " + JSON.stringify(r.detail).slice(0, 200));
+  e.target.reset(); startApp();
+}
+
+// ================= History, approval, PDF =================
+async function loadHistory(page = 1) {
+  const r = await api(`/api/quotes?operator=${op}&page=${page}`);
+  $("quotes").innerHTML = table(["#", "Customer", "Status", "Total", "By", "Date", ""],
+    r.items.map(q => [q.id, esc(q.customer), QSTATUS[q.status], money(q.total, q.currency), esc(q.created_by), q.created,
+      (q.status === "NEEDS_APPROVAL" && can("Manager") ? `<button class="btn2" onclick="decide(${q.id},'APPROVED')">Approve</button> <button class="btn2" onclick="decide(${q.id},'REJECTED')">Reject</button>` : "")
+      + (q.status === "APPROVED" ? `<button class="btn2" onclick="downloadPdf(${q.id})">PDF</button>` : "")])) + pager(r, "loadHistory");
+}
+async function decide(id, decision) {
+  const r = await post(`/api/quotes/${id}/decision`, {decision});
+  if (r.detail) alert(r.detail);
+  loadHistory(1);
+}
+async function downloadPdf(id) {
+  const r = await fetch(`/api/quotes/${id}/pdf`, {headers: {Authorization: "Bearer " + session.token}});
+  if (!r.ok) return alert((await r.json()).detail);
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(await r.blob()); a.download = `quote-${id}.pdf`; a.click();
+}
+
+// ================= Revenue leakage report (Manager+) =================
+async function loadReport() {
+  const all = await api("/api/report");
+  const mine = all.find(r => r.operator === op) || {};
+  const cards = [["Discount leakage prevented", mine.prevented, "emerald"], ["Exceptions approved by managers", mine.approved_exceptions, "teal"],
+                 ["Waiting for approval (at risk)", mine.at_risk, "violet"]];
+  $("reportCards").innerHTML = cards.map(([k, v, c]) => `<div class="card"><div class="text-sm text-gray-500">${k} (${esc(op)})</div>
+    <div class="text-2xl font-bold text-${c}-600 mt-1">${money(v || 0)}</div></div>`).join("");
+  $("reportTable").innerHTML = table(["Provider", "Quotes", "Approved", "Pending", "Rejected", "Leakage prevented", "Exceptions approved", "At risk"],
+    all.map(r => [esc(r.operator), r.quotes, r.approved, r.pending, r.rejected, money(r.prevented, r.currency), money(r.approved_exceptions, r.currency), money(r.at_risk, r.currency)]));
+}
+
+// ================= Audit log (Admin) =================
+async function loadAudit(page = 1) {
+  const r = await api("/api/audit?page=" + page);
+  $("auditBox").innerHTML = table(["Time", "User", "Action", "Details"], r.items.map(a => [a.time, esc(a.user), esc(a.action), esc(a.details)])) + pager(r, "loadAudit");
+}
+
+if (session) startApp();
+</script>
+</body></html>
